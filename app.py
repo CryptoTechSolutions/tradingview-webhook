@@ -16,22 +16,28 @@ HEADERS = {
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
+    # ✅ Check Content-Type to avoid 415 error
+    if request.content_type != 'application/json':
+        return jsonify({"error": "Invalid Content-Type. Expected application/json"}), 415
+
+    data = request.get_json()
 
     if not data:
-        return jsonify({"error": "No data received"}), 400  # HTTP 400 for Bad Request
-    
-    # Print data for debugging (optional)
+        return jsonify({"error": "No JSON received"}), 400  # Bad Request
+
+    # ✅ Debugging: Print received webhook data
     print("Received Webhook Data:", data)
 
-    # Example: Place a trade if strategy conditions are met
+    # Extract necessary parameters
     stock = data.get("stock")
     direction = data.get("direction")
     trade_size = data.get("trade_size")
 
+    # Validate that all required fields are present
     if not stock or not direction or trade_size is None:
         return jsonify({"error": "Missing required fields"}), 400
 
+    # ✅ Prepare order payload for Alpaca
     order_payload = {
         "symbol": stock,
         "qty": trade_size,
@@ -40,15 +46,16 @@ def webhook():
         "time_in_force": "gtc"
     }
 
-    # Send order to Alpaca
+    # ✅ Send order request to Alpaca
     alpaca_response = requests.post(
         f"{ALPACA_BASE_URL}/v2/orders",
         json=order_payload,
         headers=HEADERS
     )
 
+    # ✅ Check response and return success/failure message
     if alpaca_response.status_code == 200:
-        return jsonify({"message": "Order placed successfully!", "order_details": alpaca_response.json()})
+        return jsonify({"message": "Order placed successfully!", "order_details": alpaca_response.json()}), 200
     else:
         return jsonify({"error": "Failed to place order", "details": alpaca_response.text}), 500
 
